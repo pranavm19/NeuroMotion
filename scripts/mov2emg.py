@@ -25,8 +25,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate EMG signals from movements')
     parser.add_argument('--cfg', type=str, default='config.yaml', help='Name of configuration file')
     parser.add_argument('--model_pth', default='./ckp/model_linear.pth', type=str, help='path of best pretrained BioMime model')
-    parser.add_argument('--res_path', default='./res', type=str, help='path of result folder')
-    parser.add_argument('--device', default='cuda', type=str, help='cuda|cpu')
+    parser.add_argument('--device', default='cpu', type=str, help='cuda|cpu')
     parser.add_argument('--morph', action='store_true', help='morph MUAPs')
     parser.add_argument('--muap_file', default='./ckp/muap_examples.pkl', type=str, help='initial labelled muaps')
 
@@ -34,7 +33,12 @@ if __name__ == '__main__':
     cfg = update_config('./ckp/' + args.cfg)
 
     # PART ONE: Define MSK model, movements, and extract param changes
-    msk = MSKModel()
+    msk = MSKModel(
+        model_path = './NeuroMotion/MSKlib/models/ARMS_Wrist_Hand_Model_4.3/',
+        model_name= 'Hand_Wrist_Model_for_development.osim',
+        default_pose_path = './NeuroMotion/MSKlib/models/poses.csv',
+    )
+        
     poses = ['default', 'default+flex', 'default', 'default+ext', 'default']
     durations = [1.5] * 4
     duration = np.sum(durations)
@@ -94,7 +98,6 @@ if __name__ == '__main__':
     ext = np.concatenate((np.linspace(0, 0.8, round(fs * duration / 2)), np.linspace(0.8, 0, round(fs * duration / 2))))      # percentage MVC
     time_samples = len(ext)
     ext_new, spikes, fr, ipis = mn_pool.generate_spike_trains(ext, fit=False)
-    plot_spike_trains(spikes, './figs/spikes_{}.jpg'.format(ms_label))
 
     # PART THREE: Simulate MUAPs using BioMime during the movement
     if ms_label == 'FCU_u' or ms_label == 'FCU_h':
@@ -115,9 +118,6 @@ if __name__ == '__main__':
     if args.device == 'cuda':
         assert torch.cuda.is_available()
         generator.cuda()
-
-    if not os.path.exists(args.res_path):
-        os.mkdir(args.res_path)
 
     # Filtering, not required
     # low-pass filtering for smoothing
@@ -172,9 +172,6 @@ if __name__ == '__main__':
     muaps = np.transpose(muaps, (1, 0, 2, 3, 4))
     print('--- %s seconds ---' % (time.time() - start_time))
 
-    # plot muaps
-    plot_muaps(muaps, args.res_path, np.arange(0, 100, 20), np.arange(0, steps, 5), suffix=ms_label)
-
     # PART FOUR: generate EMG signals
     _, _, n_row, n_col, time_length = muaps.shape
     emg = np.zeros((n_row, n_col, time_samples + time_length))
@@ -182,11 +179,3 @@ if __name__ == '__main__':
         emg = emg + generate_emg_mu(muaps[mu], spikes[mu], time_samples)
 
     print('All done, emg.shape: ', emg.shape)
-    total_length = emg.shape[-1]
-    t = np.linspace(0, duration, total_length)
-    fig = plt.figure()
-    row, col = 5, 10
-    plt.plot(t, emg[row, col])
-    plt.xlabel('time')
-    plt.ylabel('emg')
-    plt.savefig(os.path.join(args.res_path, 'emg_{}.jpg'.format(ms_label)))
