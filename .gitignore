@@ -7,4 +7,5 @@ NeuroMotion/MNPoollib/__pycache__/
 figs/
 res/
 ckp/*.pth
+ckp/*.pkl
 NeuroMotion/MSKlib/models/

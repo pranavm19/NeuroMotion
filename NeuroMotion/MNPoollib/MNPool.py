@@ -46,6 +46,7 @@ class MotoneuronPool:
         self.fr_mode = mode
         self.fibre_density = fibre_density
         self.properties = None
+        self.phys_params = None  # Will be initialized lazily if needed
 
         self._init_pool()
 
@@ -59,14 +60,27 @@ class MotoneuronPool:
     def _init_pool(self, mode='ls2n'):
         self._init_recruitment_threshold(mode)
         self._init_frs(mode)
-        self._init_phys_params()
+        # Note: _init_phys_params() is called lazily only if assign_properties() is used
 
     def _init_phys_params(self):
-        num_fb = np.round(MS_AREA[self.ms_name] * self.fibre_density)
+        # Use ECRB as default if muscle name is not found in dictionaries
+        default_muscle = 'ECRB'
+        
+        ms_area = MS_AREA.get(self.ms_name, MS_AREA[default_muscle])
+        depth = DEPTH.get(self.ms_name, DEPTH[default_muscle])
+        angle = ANGLE.get(self.ms_name, ANGLE[default_muscle])
+        
+        # Warn user if using defaults
+        if self.ms_name not in MS_AREA:
+            import warnings
+            warnings.warn(f"Muscle '{self.ms_name}' not found in parameter dictionaries. Using '{default_muscle}' defaults: "
+                        f"MS_AREA={ms_area}, DEPTH={depth}, ANGLE={angle}", UserWarning)
+        
+        num_fb = np.round(ms_area * self.fibre_density)
         self.phys_params = edict({
             'num_fb': num_fb,
-            'depth': DEPTH[self.ms_name],
-            'angle': ANGLE[self.ms_name],
+            'depth': depth,
+            'angle': angle,
             'iz': [0.5, 0.1],
             'len': [1.0, 0.05],
             'cv': [4, 0.3],
@@ -253,6 +267,9 @@ class MotoneuronPool:
         """
 
         if config is None:
+            # Initialize phys_params lazily if not already done
+            if self.phys_params is None:
+                self._init_phys_params()
             config = self.phys_params
 
         num = config.num_fb
@@ -277,7 +294,7 @@ class MotoneuronPool:
 
         return mn
 
-    def display_onion_skin_theory(self, spikes, duration, fs, pth):
+    def display_onion_skin_theory(self, spikes, duration, fs, pth=None):
 
         # from spikes to n_spike_trains
         n_spike_trains = np.zeros((self.N, int(duration * fs)))
@@ -308,8 +325,11 @@ class MotoneuronPool:
         plt.xticks(fontsize=14)
         plt.yticks(fontsize=14)
         # plt.title('Onion Skin theory - Simulated N MNs')
-        plt.savefig(pth)
-        plt.close()
+        if pth is not None:
+            plt.savefig(pth)
+            plt.close()
+        else:
+            plt.show()
 
     def _normalise(self, normalise, vals, low, high, local=False, label=None):
         if not normalise:

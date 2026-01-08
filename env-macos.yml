@@ -1,0 +1,24 @@
+name: NeuroMotion
+channels:
+  - opensim-org
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - opensim=4.4
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pandas
+  - scipy
+  - matplotlib
+  - tqdm
+  - pyyaml
+  - easydict
+  - pip
+  - pip:
+    - cycler
+    - fonttools
+    - kiwisolver
+    - packaging
